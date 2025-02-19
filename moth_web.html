@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDM Results of Moth</title>
+    <style>
+        /* Set the body and html height to 100% to allow percentage-based height */
+		html, body {
+			width: 100%;
+			height: 98%;
+			box-sizing: border-box;
+			font-family: Arial, sans-serif;
+			padding: 1%;
+			marging: 1%;
+			background-color: #f6f7f7;
+		}
+		
+		/* title */
+		h1 {
+			grid-area: header;
+			padding: 10px;
+			text-align: center;
+			font-size: 36px;
+			font-family: sans-serif;
+			color: whitesmoke;
+			background-color: rgb(49, 49, 49);
+			border-radius: 15px;
+			margin: 1%;
+		}
+		
+		/* Main layout: Two column structure */
+		.container {
+			display: grid;
+			grid-template-columns: 1fr 2fr; /* Left: 1/3, Right: 2/3 */
+			gap: 20px; /* Space between columns */
+			height: 90%; 
+			margin: 1%;
+		}
+		
+		.column {
+			display: flex;
+			flex-direction: column; /* Ensure content is stacked */
+			height: 100%;
+		}
+		
+		/* Selector Section */
+		.selector {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: space-between; /* Align items to center vertically */
+			gap: 10px;
+			padding: 10px;
+			border: 1px solid #ccc;
+			border-radius: 10px;
+			background: #f9f9f9;
+			background-color: #dcdcde;
+		}
+
+		/* Ensure selectors are stacked */
+		.selector label {
+			display: block;
+			width: 46%;
+			margin: 5px;
+			font-size: 16px;
+			text-align: center;
+		}
+		
+		.selector select {
+			width: 46%;
+			margin: 5px;
+			font-size: 16px;
+			border-radius: 10px;
+			text-align: center;
+			color: #50575e;
+			background: #f9f9f9;
+			padding: 1%;
+			align-items: center;
+		}
+		
+		.selector select#species-select {
+			width: 100%;  /* Make the third select take the full width */
+		}
+		
+		.selector select option {
+			text-align: center;
+			color: black;
+		}
+
+		.species-image {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			padding: 10px;
+			border: 1px solid #ccc;
+			border-radius: 10px;
+			background: #dcdcde;
+			font-size: 14px;
+			background-color: #dcdcde;
+		}
+		
+		.species-image img {
+			max-width: 100%; /* Ensure it fits within the div */
+			max-height: 100%;
+			object-fit: contain;
+		}
+		
+		.map {
+			position: relative;
+			width: 100%;  
+			height: 100%;
+			padding-bottom: 2px;
+			box-sizing: border-box;
+			object-fit: contain;
+		}
+		
+		/* Interactive Map (Right Panel) */
+		#map-frame {
+			width: 100%;
+			height: 98%;
+			border: 1px solid #ccc;
+			border-radius: 10px;
+			box-sizing: border-box;
+			background-color: #dcdcde;
+		}
+
+    </style>
+</head>
+
+<body>
+
+	<h1>蛾類物種分布地圖圖臺</h1>
+		
+	<div class="container">
+		<!-- Left Panel (selector and images) -->
+		<div class="column">
+			<!-- selectors -->
+			<div>
+				<h2>選擇物種</h2>
+				<div>選擇科別 > 選擇物種學名開頭字母 > 選擇物種</div>
+				<div class="selector">
+					<label for="family-select">選擇科別</label>
+					<select id="family-select">
+						<option value="">-- 請選擇科名 --</option>
+					</select>
+					
+					<label for="alphabet-select">選擇學名開頭字母</label>
+					<select id="alphabet-select">
+						<option value="">-- 請選擇字母 --</option>
+					</select>
+
+					<select id="species-select" onchange="updateMapAndImage()">
+						<option value="">-- 請選擇物種 --</option>
+					</select>
+				</div>
+				<p></P>
+				<!-- 物種圖片 -->
+				<div class="species-image">
+					<p>此圖為選擇的物種以不同閥值產生的 11 種分布範圍。可透過對圖片點選滑鼠右鍵 > 「選擇新視窗開啟圖片」來觀看原始大小的圖檔。</p>
+					<img id="species-image" src="" alt="">
+				</div>
+			</div>
+		</div>
+		
+		<!-- 右側 (互動式地圖) -->
+		<div class="map">
+			<div>物種分布互動式地圖（淺紅色區域為模型預測的最大潛在分布範圍，深紅色區域為模型預測的最小潛在分布範圍）</div>
+			<iframe id="map-frame" src=""></iframe>
+		</div>
+	</div>
+	
+	<script>
+        let speciesData = [];
+
+        // 讀取 CSV 檔案
+        function loadCSV() {
+            fetch('data/sp_table.csv')
+                .then(response => response.text())
+                .then(text => {
+                    let rows = text.split("\n").map(row => row.trim()).filter(row => row); // 解析 CSV
+                    speciesData = rows.slice(1).map(row => {
+                        let [family, alphabet, species] = row.split(",");
+                        return { family, alphabet, species };
+                    });
+                    populateFamilySelect();
+                })
+                .catch(error => console.error('Error loading CSV:', error));
+        }
+
+        // 產生 Family 選單
+        function populateFamilySelect() {
+            let familySelect = document.getElementById("family-select");
+            let uniqueFamilies = [...new Set(speciesData.map(item => item.family))];
+            uniqueFamilies.forEach(family => {
+                let option = document.createElement("option");
+                option.value = family;
+                option.textContent = family;
+                familySelect.appendChild(option);
+            });
+
+            // 設定事件監聽器
+            familySelect.addEventListener("change", populateAlphabetSelect);
+        }
+
+        // 產生 Alphabet 選單
+        function populateAlphabetSelect() {
+            let alphabetSelect = document.getElementById("alphabet-select");
+            let family = document.getElementById("family-select").value;
+            alphabetSelect.innerHTML = '<option value="">-- 請選擇字母 --</option>';
+
+            if (family) {
+                let filtered = speciesData.filter(item => item.family === family);
+                let uniqueAlphabets = [...new Set(filtered.map(item => item.alphabet))];
+				
+				uniqueAlphabets.sort();
+
+                uniqueAlphabets.forEach(alphabet => {
+                    let option = document.createElement("option");
+                    option.value = alphabet;
+                    option.textContent = alphabet;
+                    alphabetSelect.appendChild(option);
+                });
+
+                alphabetSelect.addEventListener("change", populateSpeciesSelect);
+            }
+        }
+
+        // 產生 Species 選單
+        function populateSpeciesSelect() {
+            let speciesSelect = document.getElementById("species-select");
+            let family = document.getElementById("family-select").value;
+            let alphabet = document.getElementById("alphabet-select").value;
+            speciesSelect.innerHTML = '<option value="">-- 請選擇物種 --</option>';
+
+            if (family && alphabet) {
+                let filtered = speciesData.filter(item => item.family === family && item.alphabet === alphabet);
+                
+				filtered.sort();
+				
+				filtered.forEach(item => {
+                    let option = document.createElement("option");
+                    option.value = item.species;
+                    option.textContent = item.species;
+                    speciesSelect.appendChild(option);
+                });
+            }
+        }
+
+        // 更新圖片與地圖
+        function updateMapAndImage() {
+            let species = document.getElementById("species-select").value;
+            let imageElement = document.getElementById("species-image");
+            let iframeElement = document.getElementById("map-frame");
+
+            if (species) {
+                imageElement.src = `www/${species}.png`;
+                imageElement.alt = species;
+                iframeElement.src = `www/map/${species}.html`;
+            } else {
+                imageElement.src = "";
+                iframeElement.src = "";
+            }
+        }
+
+        // 載入 CSV 資料
+        loadCSV();
+    </script>
+</body>
