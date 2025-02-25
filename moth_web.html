@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SDM Results of Moth</title>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <style>
         /* Set the body and html height to 100% to allow percentage-based height */
 		html, body {
@@ -106,23 +108,22 @@
 			object-fit: contain;
 		}
 		
-		.map {
+		#map {
 			position: relative;
 			width: 100%;  
 			height: 100%;
 			padding-bottom: 2px;
 			box-sizing: border-box;
 			object-fit: contain;
+			border: 1px solid #ccc;
+			border-radius: 10px;
 		}
 		
 		/* Interactive Map (Right Panel) */
 		#map-frame {
 			width: 100%;
 			height: 98%;
-			border: 1px solid #ccc;
-			border-radius: 10px;
-			box-sizing: border-box;
-			background-color: #dcdcde;
+			
 		}
 
     </style>
@@ -164,14 +165,15 @@
 		</div>
 		
 		<!-- 右側 (互動式地圖) -->
-		<div class="map">
+		<div id= "map-frame">
 			<div>物種分布互動式地圖（淺紅色區域為模型預測的最大潛在分布範圍，深紅色區域為模型預測的最小潛在分布範圍）</div>
-			<iframe id="map-frame" src=""></iframe>
+			<div id="map"></div>
 		</div>
 	</div>
 	
 	<script>
-        let speciesData = [];
+        
+		let speciesData = [];
 
         // 讀取 CSV 檔案
         function loadCSV() {
@@ -265,5 +267,78 @@
 
         // 載入 CSV 資料
         loadCSV();
+		
+		
+		// Initialize the Leaflet map (without any layers)
+        var map = L.map('map').setView([23.5, 121], 7); // Center on Taiwan
+
+        // Define base layers
+        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        });
+
+        var satellite = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+            attribution: '&copy; Google Satellite'
+        });
+		
+		// Add default base layer
+        osm.addTo(map);
+
+		// Layer control for base maps
+        var baseMaps = {
+            "基本地圖": osm,
+            "衛星地圖": satellite
+        };
+
+        L.control.layers(baseMaps).addTo(map);
+		
+		// Add layer of species
+		var minLayer = null;
+        var maxLayer = null;
+
+        function loadGeoJSON(species) {
+            if (!species) return; // Do nothing if no species is selected
+
+            var minFile = `data/layer/${species}_min.geojson`;
+            var maxFile = `data/layer/${species}_max.geojson`;
+
+            // Remove previous layers if they exist
+            if (minLayer) map.removeLayer(minLayer);
+            if (maxLayer) map.removeLayer(maxLayer);
+
+            // Load min GeoJSON (dark red)
+            fetch(minFile)
+                .then(response => response.json())
+                .then(data => {
+                    minLayer = L.geoJSON(data, {
+                        style: { color: "transparent", weight: 0, fillColor: "red", fillOpacity: 0.4 }
+                    }).addTo(map);
+                })
+                .catch(error => console.error("Error loading min GeoJSON:", error));
+
+            // Load max GeoJSON (light red)
+            fetch(maxFile)
+                .then(response => response.json())
+                .then(data => {
+                    maxLayer = L.geoJSON(data, {
+                        style: { color: "transparent", weight: 0, fillColor: "red", fillOpacity: 0.3 }
+                    }).addTo(map);
+
+                    // Fit map to the bounds of the max layer
+                    map.fitBounds(maxLayer.getBounds());
+                })
+                .catch(error => console.error("Error loading max GeoJSON:", error));
+        }
+
+
+        // Listen for dropdown changes
+        document.getElementById('species-select').addEventListener('change', function() {
+            var selectedSpecies = this.value;
+            loadGeoJSON(selectedSpecies);
+        });
+		
+		
+
     </script>
 </body>
