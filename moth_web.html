@@ -236,9 +236,10 @@
             speciesSelect.innerHTML = '<option value="">-- 請選擇物種 --</option>';
 
             if (family && alphabet) {
-                let filtered = speciesData.filter(item => item.family === family && item.alphabet === alphabet);
-                
-				filtered.sort();
+                let filtered = speciesData
+					.filter(item => item.family === family && item.alphabet === alphabet)
+					.sort((a, b) => a.species.localeCompare(b.species, 'en', { sensitivity: 'base' })); // Case-insensitive sorting
+
 				
 				filtered.forEach(item => {
                     let option = document.createElement("option");
